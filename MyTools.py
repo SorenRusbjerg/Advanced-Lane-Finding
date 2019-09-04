@@ -3,6 +3,9 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+# Import everything needed to edit/save/watch video clips
+from moviepy.editor import VideoFileClip
+from IPython.display import HTML
 
 def GetFileNameFromFilePath(fileName):
     fileName = os.path.basename(fileName)
@@ -12,19 +15,19 @@ def GetFileNameFromFilePath(fileName):
 def MyImageWrite(fileName, savePath, img):
     cv2.imwrite(os.path.join(savePath, fileName),img)
     
+def ProcessVideo(vidfile, out_folder, ProcessFunc):
+    # Process video file using ProcessFunc(image) and save to out_folder
+    fileOut = os.path.join(out_folder, GetFileNameFromFilePath(vidfile)) + vidfile[-4:]
+    ## To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
+    ## To do so add .subclip(start_second,end_second) to the end of the line below
+    ## Where start_second and end_second are integer values representing the start and end of the subclip
+    ## You may also uncomment the following line for a subclip of the first 5 seconds
+    ##clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
+    clip1 = VideoFileClip(vidfile)
+    white_clip = clip1.fl_image(ProcessFunc) #NOTE: this function expects color images!!
+    white_clip.write_videofile(fileOut, audio=False)
     
-def FindLeftAndRightLaneXbaseFromHist(img,minXidx=0,maxXidx=1200):
-    # return x values in image from where most pixels are found in histogram    
-    # Take a histogram of the bottom half of the image
-    histogram = np.sum(img[img.shape[0]//2:,:], axis=0)
-    # Find the peak of the left and right halves of the histogram
-    # These will be the starting point for the left and right lines
-    midpoint = np.int(histogram.shape[0]//2)
-    leftx_base = np.argmax(histogram[minXidx:midpoint]) + minXidx
-    rightx_base = np.argmax(histogram[midpoint:maxXidx]) + midpoint    
     
-    return leftx_base, rightx_base
-
 def BirdsEyeLaneFromLeftAndRightPolynomials(img, leftPoly, rightPoly):    
     ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
     left_fitx = leftPoly[0]*ploty**2 + leftPoly[1]*ploty + leftPoly[2]
@@ -48,6 +51,8 @@ def BirdsEyeLaneFromLeftAndRightPolynomials(img, leftPoly, rightPoly):
 
 def MergeAndPlotBGRImages(img1, img2, text):
     img_out = cv2.addWeighted(img1, 1, img2, 0.3, 0)    
+    
+    plt.figure(figsize=(15, 10))
     plt.imshow(cv2.cvtColor(img_out, cv2.COLOR_BGR2RGB))
     plt.title(text)
     
@@ -61,15 +66,6 @@ def CalculateLaneOffset(leftLine, RightLine):
     
     return xOffset
    
-def CalculateLineCurvature(line):
-    '''
-    Calculates the curvature of polynomial functions in pixels.
-    '''   
-    # Define y-value where we want radius of curvature
-    # We'll choose the maximum y-value, corresponding to the bottom of the image
-    y_eval = line.ImgHeight 
 
-    curverad = np.power(1 + (2*line.best_fit[0]*y_eval + line.best_fit[1])**2, 1.5)/(2*np.abs(line.best_fit[0]))
-    return curverad 
 
     
