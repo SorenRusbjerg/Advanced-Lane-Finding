@@ -10,7 +10,52 @@ from IPython.display import HTML
 def GetFileNameFromFilePath(fileName):
     fileName = os.path.basename(fileName)
     return fileName[:-4]
+
     
+def CannyDetect(img, low_threshold=80, high_threshold=240):
+    # Use blurring and canny transform to obtain a trhesholding image
+    # Gausian filter image for removing noise edges
+    img_canny = cv2.GaussianBlur(img, (9, 9), 0)
+    # Canny edge detection
+    img_canny = cv2.Canny(img_canny, low_threshold, high_threshold)    
+    return img_canny
+
+
+def ColorThreshold(img):
+    # Use Color transform to obtain a threshold image
+    l_Thres = 200#200
+    s_Thres = 90#100    
+    Hue_Thres = 15#15 # Yellow lines
+    Hue_Width = 5
+    gray_Thres = 200
+    
+    img_hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h = img_hls[:,:,0]
+    l = img_hls[:,:,1]
+    s = img_hls[:,:,2]
+    h_channel = np.zeros_like(h)
+    l_channel = np.zeros_like(h)
+    s_channel = np.zeros_like(h)
+    lumin_channel = np.zeros_like(img_gray)
+    
+    h_channel[(h > Hue_Thres) & (h < Hue_Thres+Hue_Width)] = 0 # deactivated
+    l_channel[l > l_Thres] = 255
+    s_channel[s > s_Thres] = 255
+    lumin_channel[img_gray > gray_Thres] = 255
+    
+    combined = h_channel + l_channel + s_channel + lumin_channel
+    
+    return combined, h_channel, l_channel, s_channel, lumin_channel
+
+
+def CombineBinaryImages(img1, img2):
+    # Combine images
+    img_binary = np.zeros_like(img1)
+    img_binary[img1.nonzero()] = 255
+    img_binary[img2.nonzero()] = 255
+    return img_binary
+
 
 def MyImageWrite(fileName, savePath, img):
     cv2.imwrite(os.path.join(savePath, fileName),img)
@@ -68,4 +113,19 @@ def CalculateLaneOffset(leftLine, RightLine):
    
 
 
-    
+def CalculatePerspectiveTransform(imgShape, y_upperValue):
+    # From Image points ([(210, dimY),(590, 455),(695, 455),(1120, dimY)])
+    #Calculate source and destination points using linear equation
+    dimY, dimX = imgShape
+    slopeL = (590-210)/(455-dimY)
+    offsetL = 210-slopeL*dimY
+    x_upper_L = y_upperValue*slopeL+offsetL
+
+    slopeR = (695-1120)/(455-dimY)
+    offsetR = 1120-slopeR*dimY
+    x_upper_R = y_upperValue*slopeR+offsetR
+    src = np.float32([(210, dimY),(x_upper_L, y_upperValue),(x_upper_R, y_upperValue),(1120, dimY)])
+    # destination points
+    dst = np.float32([(400, dimY),(400, 0),(1000, 0),(1000, dimY)])
+
+    return src, dst
