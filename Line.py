@@ -19,7 +19,8 @@ class Line():
         #polynomial coefficients for the most recent fit
         self.current_fit = []  
         #radius of curvature of the line in some units
-        self.radius_of_curvature = None 
+        self.radius_of_curvature = [] 
+        self.best_radius = None
         #distance in meters of vehicle center from the line
         self.line_base_pos = None 
         #difference in fit coefficients between last and new fits
@@ -42,12 +43,14 @@ class Line():
 
         # Choose the number of sliding windows
         self.nwindows = 9
+        # Needed window detections to get new polynomial
+        self.NrOfWindowsThreshold = 3
         # Set the width of the windows +/- margin when using window search 
         self.margin = 100
         # Set minimum number of pixels found to recenter window
         self.minpix = 500
         # Set minimum number of pixels found to include new pixels in polynomial
-        self.minpixPoly = 1200
+        self.minpixPoly = 1400
         # Set the width of the windows +/- margin when using poly search 
         self.polymargin = 50
         # Max allowed change to x-position
@@ -106,7 +109,7 @@ class Line():
                     self.bestx =  np.mean(self.recent_xfitted[-self.N_Average:])
       
         # If window is not detected in lots of windows, set detected to '0'
-        self.tooFewPixelsFound = NrWindowsDetect < 2
+        self.tooFewPixelsFound = NrWindowsDetect < self.NrOfWindowsThreshold
  
         # Concatenate the arrays of indices (previously was a list of lists of pixels)
         try:
@@ -157,9 +160,11 @@ class Line():
             
             print('{} lineCurvature: {:.0f}, x-poly: {:.0f}, x_diff: {:.1f}, badPos: {}, Too few pixels: {}, lane detected: {}'
                   .format(self.laneSide, lineCurvature,xPosFromPoly,x_diff,badPos, self.tooFewPixelsFound, self.detected))
-            # Make sure that there always exists a best fit poly
+            # Make sure that there always exists a best fit poly and curves
             if self.best_fit == []:
-               self.best_fit = [0, 0, self.bestx] # Straight line 
+               self.best_fit = [0, 0, self.bestx] # Straight line
+               self.radius_of_curvature.append(10000)
+               self.best_radius = 10000
             
             self.NrOfBadFrames += 1 
             if self.NrOfBadFrames > self.BadFramesThreshold:
@@ -172,7 +177,9 @@ class Line():
             self.best_fit = np.mean(self.current_fit[-self.N_Average:], axis=0)            
             self.bestx = np.mean(self.recent_xfitted[-self.N_Average:], axis=0)
             
-            self.radius_of_curvature = self.CalculateLineCurvature(self.best_fit)
+            self.radius_of_curvature.append(self.CalculateLineCurvature(self.best_fit))
+            self.best_radius = self.geometric_mean(self.radius_of_curvature[-self.N_Average:])
+            
             self.NrOfBadFrames = 0
         
         
@@ -313,14 +320,18 @@ class Line():
         # Check lane curvature difference and set detected to false if too high
         curveThreshold = 500
         maxFactorThreshold = 3
-        if (self.radius_of_curvature < curveThreshold) or (lane.radius_of_curvature < curveThreshold):
-            if self.radius_of_curvature > lane.radius_of_curvature:
-                curveFactor = self.radius_of_curvature / lane.radius_of_curvature
+        if (self.radius_of_curvature[-1] < curveThreshold) or (lane.radius_of_curvature[-1] < curveThreshold):
+            if self.radius_of_curvature[-1] > lane.radius_of_curvature[-1]:
+                curveFactor = self.radius_of_curvature[-1] / lane.radius_of_curvature[-1]
             else:
-                curveFactor = lane.radius_of_curvature / self.radius_of_curvature
+                curveFactor = lane.radius_of_curvature[-1] / self.radius_of_curvature[-1]
                  
             if curveFactor > maxFactorThreshold:
                 self.NrOfBadFrames += 2
                 lane.NrOfBadFrames += 2
-                print('Lane curvature difference too high, new detection needed!')
-        
+                print('Lane curvature difference too high!')
+   
+
+    def geometric_mean(self, arr):
+        a = np.log(arr)
+        return np.exp(a.sum()/len(a))

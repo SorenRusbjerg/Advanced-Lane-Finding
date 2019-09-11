@@ -12,19 +12,43 @@ def GetFileNameFromFilePath(fileName):
     return fileName[:-4]
 
     
-def CannyDetect(img, low_threshold=80, high_threshold=240):
+def CannyDetect(img, low_threshold=80, high_threshold=130):
+    # Image gray threshold
+    gray_Thres = 120
+    
     # Use blurring and canny transform to obtain a trhesholding image
     # Gausian filter image for removing noise edges
-    img_canny = cv2.GaussianBlur(img, (9, 9), 0)
+    img_canny = cv2.GaussianBlur(img, (3, 3), 0)
     # Canny edge detection
     img_canny = cv2.Canny(img_canny, low_threshold, high_threshold)    
+    
+    # Threshold grayscale image for only bright pixels
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    img_gray_thres = np.zeros_like(img_gray)
+    img_gray_thres[img_gray > gray_Thres] = 255
+    
+    # Use erosion to withen the black part in the image
+    kernel = np.ones((5,5), np.uint8)
+    img_gray_thres = cv2.erode(img_gray_thres, kernel, iterations=1) 
+   
+ #   f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+ #   f.tight_layout()
+ #   ax1.imshow(img_gray_thres,'gray')
+ #   ax1.set_title('threshold Image', fontsize=50)
+ #   ax2.imshow(img_canny, 'gray')
+ #   ax2.set_title('Canny Image', fontsize=50)
+ #   plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
+    
+     # Remove dark areas in image from canny image  
+    img_canny[img_gray_thres < 200] = 0   
     return img_canny
 
 
 def ColorThreshold(img):
     # Use Color transform to obtain a threshold image
     l_Thres = 200#200
-    s_Thres = 90#100    
+    s_Thres = 140#100    
     Hue_Thres = 15#15 # Yellow lines
     Hue_Width = 5
     gray_Thres = 200
@@ -73,7 +97,9 @@ def ProcessVideo(vidfile, out_folder, ProcessFunc):
     white_clip.write_videofile(fileOut, audio=False)
     
     
-def BirdsEyeLaneFromLeftAndRightPolynomials(img, leftPoly, rightPoly):    
+def BirdsEyeLaneFromLeftAndRightPolynomials(img, leftPoly, rightPoly):  
+    # Draw birdseye green lane from left and right polynomials on top of birdeye image
+    
     ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
     left_fitx = leftPoly[0]*ploty**2 + leftPoly[1]*ploty + leftPoly[2]
     right_fitx = rightPoly[0]*ploty**2 + rightPoly[1]*ploty + rightPoly[2]
@@ -100,6 +126,8 @@ def MergeAndPlotBGRImages(img1, img2, text):
     plt.figure(figsize=(15, 10))
     plt.imshow(cv2.cvtColor(img_out, cv2.COLOR_BGR2RGB))
     plt.title(text)
+    
+    return img_out
     
     
     
